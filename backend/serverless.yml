@@ -1,0 +1,45 @@
+service: ai-document-analyzer
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    MONGODB_URI: ${ssm:/ai-document-analyzer/mongodb-uri}
+    JWT_SECRET: ${ssm:/ai-document-analyzer/jwt-secret}
+    ENCRYPTION_KEY: ${ssm:/ai-document-analyzer/encryption-key}
+    GOOGLE_CLIENT_ID: ${ssm:/ai-document-analyzer/google-client-id}
+    GOOGLE_CLIENT_SECRET: ${ssm:/ai-document-analyzer/google-client-secret}
+    MICROSOFT_CLIENT_ID: ${ssm:/ai-document-analyzer/microsoft-client-id}
+    MICROSOFT_CLIENT_SECRET: ${ssm:/ai-document-analyzer/microsoft-client-secret}
+    DROPBOX_CLIENT_ID: ${ssm:/ai-document-analyzer/dropbox-client-id}
+    DROPBOX_CLIENT_SECRET: ${ssm:/ai-document-analyzer/dropbox-client-secret}
+
+functions:
+  api:
+    handler: src/server.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: any
+          cors: true
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+  dotenv:
+    path: .env
+    include:
+      - MONGODB_URI
+      - JWT_SECRET
+      - ENCRYPTION_KEY
+      - GOOGLE_CLIENT_ID
+      - GOOGLE_CLIENT_SECRET
+      - MICROSOFT_CLIENT_ID
+      - MICROSOFT_CLIENT_SECRET
+      - DROPBOX_CLIENT_ID
+      - DROPBOX_CLIENT_SECRET 
