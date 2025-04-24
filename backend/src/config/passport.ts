@@ -1,106 +1,73 @@
-import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { Strategy as MicrosoftStrategy } from 'passport-microsoft';
-import { Strategy as DropboxStrategy } from 'passport-dropbox-oauth2';
-import { User } from '../models/User';
+import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
 
-passport.serializeUser((user: any, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id: string, done) => {
-  try {
-    const user = await User.findById(id);
-    done(null, user);
-  } catch (error) {
-    done(error, null);
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  googleToken: {
+    type: String,
+    select: false
+  },
+  googleRefreshToken: {
+    type: String,
+    select: false
+  },
+  microsoftToken: {
+    type: String,
+    select: false
+  },
+  microsoftRefreshToken: {
+    type: String,
+    select: false
+  },
+  dropboxToken: {
+    type: String,
+    select: false
+  },
+  dropboxRefreshToken: {
+    type: String,
+    select: false
+  },
+  documents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Document'
+  }],
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
-// Google Strategy
-passport.use(new GoogleStrategy({
-  clientID: process.env.GOOGLE_CLIENT_ID || '',
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-  callbackURL: `${process.env.BACKEND_URL}/api/auth/google/callback`,
-  scope: ['profile', 'email', 'https://www.googleapis.com/auth/drive.readonly']
-}, async (accessToken, refreshToken, profile, done) => {
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  
   try {
-    let user = await User.findOne({ email: profile.emails?.[0]?.value });
-    
-    if (!user) {
-      user = new User({
-        email: profile.emails?.[0]?.value,
-        name: profile.displayName,
-        googleToken: accessToken,
-        googleRefreshToken: refreshToken
-      });
-    } else {
-      user.googleToken = accessToken;
-      user.googleRefreshToken = refreshToken;
-    }
-    
-    await user.save();
-    return done(null, user);
-  } catch (error) {
-    return done(error as Error, undefined);
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error: any) {
+    next(error);
   }
-}));
+});
 
-// Microsoft Strategy
-passport.use(new MicrosoftStrategy({
-  clientID: process.env.MICROSOFT_CLIENT_ID || '',
-  clientSecret: process.env.MICROSOFT_CLIENT_SECRET || '',
-  callbackURL: `${process.env.BACKEND_URL}/api/auth/microsoft/callback`,
-  scope: ['user.read', 'files.read'],
-  tenant: 'common'
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
-    let user = await User.findOne({ email: profile.emails?.[0]?.value });
-    
-    if (!user) {
-      user = new User({
-        email: profile.emails?.[0]?.value,
-        name: profile.displayName,
-        microsoftToken: accessToken,
-        microsoftRefreshToken: refreshToken
-      });
-    } else {
-      user.microsoftToken = accessToken;
-      user.microsoftRefreshToken = refreshToken;
-    }
-    
-    await user.save();
-    return done(null, user);
-  } catch (error) {
-    return done(error as Error, undefined);
-  }
-}));
+// Method to compare password
+userSchema.methods.comparePassword = async function(candidatePassword: string) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 
-// Dropbox Strategy
-passport.use(new DropboxStrategy({
-  clientID: process.env.DROPBOX_CLIENT_ID || '',
-  clientSecret: process.env.DROPBOX_CLIENT_SECRET || '',
-  callbackURL: `${process.env.BACKEND_URL}/api/auth/dropbox/callback`,
-  scope: ['files.content.read']
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
-    let user = await User.findOne({ email: profile.emails?.[0]?.value });
-    
-    if (!user) {
-      user = new User({
-        email: profile.emails?.[0]?.value,
-        name: profile.displayName,
-        dropboxToken: accessToken,
-        dropboxRefreshToken: refreshToken
-      });
-    } else {
-      user.dropboxToken = accessToken;
-      user.dropboxRefreshToken = refreshToken;
-    }
-    
-    await user.save();
-    return done(null, user);
-  } catch (error) {
-    return done(error as Error, undefined);
-  }
-})); 
+export const User = mongoose.model('User', userSchema);
